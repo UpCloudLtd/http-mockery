@@ -1,0 +1,32 @@
+{
+  "endpoints": [
+    {
+      "uri": "/example",
+      "method": "GET",
+      "template": "response-example.template.json",
+      "response_code": 200,
+      "variables": [
+        {
+          "name": "item1",
+          "value": "replaced_value"
+        },
+        {
+          "name": "item2",
+          "env_var": "TEMPLATE_VALUE2"
+        }
+      ]
+    },
+    {
+      "uri": "/",
+      "method": "POST",
+      "template": "creation-response-example.template.json",
+      "response_code": 201
+    },
+    {
+      "uri": "/resource-id-2",
+      "method": "DELETE",
+      "response_code": 204
+    }
+  ],
+  "listen_port": 8000
+}

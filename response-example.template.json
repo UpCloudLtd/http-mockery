@@ -1,0 +1,6 @@
+{
+  "status": "success",
+  "code": 200,
+  "from_config": "<item1>",
+  "from_env": "<item2>"
+}
