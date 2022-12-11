@@ -3,7 +3,7 @@ HTTP server returning configurable responses with support for templates.
 
 ## Usage
 
-To run http-mockery you'll need to have a config file. Example is available [here](config-example.json).
+To run http-mockery you'll need to have a config file. Example is available [here](examples/config-example.json).
 Config file needs to include an `endpoints` config if you want to respond with anything else than 404 Not Found.
 Default listening address is "0.0.0.0:8080", but this can be changed with `listen_ip` and `listen_port`.
 
