@@ -1,0 +1,5 @@
+{
+    "listen_ip": "1.2.3.4",
+    "listen_port": 1337,
+    "endpoints": []
+}
