@@ -1,0 +1,22 @@
+name: Tests
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # support two latest major versions of Go, following the Go security policy
+        # in which these versions get security updates. See https://golang.org/security
+        go-version: [1.18.x, 1.19.x]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: test
+        run: go test ./...

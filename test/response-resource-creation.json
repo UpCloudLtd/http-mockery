@@ -1,0 +1,14 @@
+{
+    "id": 3,
+    "status": "created",
+    "meta": [
+        {
+            "key": "foo",
+            "value": "bar"
+        },
+        {
+            "key": "test",
+            "value": 123
+        }
+    ]
+}
