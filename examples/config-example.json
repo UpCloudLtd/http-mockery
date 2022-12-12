@@ -1,6 +1,7 @@
 {
   "endpoints": [
     {
+      "type": "normal",
       "uri": "/example",
       "method": "GET",
       "template": "response-example.template.json",
@@ -17,12 +18,14 @@
       ]
     },
     {
+      "type": "normal",
       "uri": "/",
       "method": "POST",
       "template": "creation-response-example.template.json",
       "response_code": 201
     },
     {
+      "type": "normal",
       "uri": "/resource-id-2",
       "method": "DELETE",
       "response_code": 204

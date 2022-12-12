@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/valyala/fasttemplate"
@@ -19,6 +20,13 @@ var (
 
 var validHTTPMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPost, http.MethodDelete}
 
+const (
+	EndpointTypeNormal = "normal"
+	EndpointTypeRegex  = "regex"
+)
+
+var validEndpointTypes = []string{EndpointTypeNormal, EndpointTypeRegex}
+
 type Config struct {
 	ListenIP   string     `json:"listen_ip"`
 	ListenPort int        `json:"listen_port"`
@@ -27,6 +35,7 @@ type Config struct {
 
 type Endpoint struct {
 	Uri          string     `json:"uri"`
+	Type         string     `json:"type"`
 	Method       string     `json:"method"`
 	ResponseCode int        `json:"response_code"`
 	Template     string     `json:"template"`
@@ -62,6 +71,17 @@ func (s MockHandler) ValidateConfig() error {
 		}
 		if !validMethod {
 			return fmt.Errorf(fmt.Sprintf("Invalid HTTP method (%s) for endpoint %s. Allowed: %+v", endpoint.Method, endpoint.Uri, validHTTPMethods))
+		}
+
+		validType := false
+		for _, eType := range validEndpointTypes {
+			if strings.ToLower(endpoint.Type) == eType {
+				validType = true
+				break
+			}
+		}
+		if !validType {
+			return fmt.Errorf(fmt.Sprintf("Invalid endpoint type (%s) for endpoint %s. Allowed: %+v", endpoint.Type, endpoint.Uri, validEndpointTypes))
 		}
 
 		if endpoint.Template != "" {
@@ -113,8 +133,16 @@ func (s MockHandler) RenderTemplateResponse(e Endpoint) (string, error) {
 
 func (s MockHandler) MatchEndpoint(r *http.Request) (Endpoint, error) {
 	for _, endpoint := range s.Config.Endpoints {
-		if strings.ToUpper(endpoint.Method) == r.Method && endpoint.Uri == r.RequestURI {
-			return endpoint, nil
+		if strings.ToUpper(endpoint.Method) == r.Method {
+			if endpoint.Type == EndpointTypeRegex {
+				if match, _ := regexp.MatchString(endpoint.Uri, r.RequestURI); match {
+					return endpoint, nil
+				}
+			}
+
+			if endpoint.Type == EndpointTypeNormal && endpoint.Uri == r.RequestURI {
+				return endpoint, nil
+			}
 		}
 	}
 

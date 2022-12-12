@@ -12,6 +12,7 @@ func testingConfig() mockery.Config {
 	return mockery.Config{
 		Endpoints: []mockery.Endpoint{
 			{
+				Type:         mockery.EndpointTypeNormal,
 				Uri:          "/example",
 				Method:       "GET",
 				ResponseCode: 200,
@@ -24,11 +25,18 @@ func testingConfig() mockery.Config {
 				},
 			},
 			{
+				Type:         mockery.EndpointTypeNormal,
 				Uri:          "/resource",
 				Method:       "POST",
 				ResponseCode: 201,
 				Template:     "../../test/response-resource-creation.json",
 				Variables:    []mockery.Variable{},
+			},
+			{
+				Type:         mockery.EndpointTypeRegex,
+				Uri:          "/resource/[0-9]+",
+				Method:       "DELETE",
+				ResponseCode: 204,
 			},
 		},
 	}
@@ -94,4 +102,8 @@ func TestEndpointMatching(t *testing.T) {
 	endpoint, err := testMocker.MatchEndpoint(&http.Request{Method: http.MethodPost, RequestURI: "/resource"})
 	assert.Equal(t, nil, err, "Endpoint should match")
 	assert.Equal(t, testMocker.Config.Endpoints[1], endpoint, "Should be correctly matched endpoint")
+
+	endpoint, err = testMocker.MatchEndpoint(&http.Request{Method: http.MethodDelete, RequestURI: "/resource/14354"})
+	assert.Equal(t, nil, err, "Endpoint should match")
+	assert.Equal(t, testMocker.Config.Endpoints[2], endpoint, "Should be correctly matched endpoint")
 }
