@@ -51,5 +51,6 @@ func main() {
 		log.Fatal("Config validation failed: ", err.Error())
 	}
 
+	log.Printf("start listening %s", listenAddr)
 	log.Fatal(http.Serve(l, h))
 }

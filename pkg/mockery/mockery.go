@@ -1,15 +1,18 @@
 package mockery
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/valyala/fasttemplate"
 )
@@ -30,6 +33,7 @@ var validEndpointTypes = []string{EndpointTypeNormal, EndpointTypeRegex}
 type Config struct {
 	ListenIP   string     `json:"listen_ip"`
 	ListenPort int        `json:"listen_port"`
+	ProxyPass  string     `json:"proxy_pass"`
 	Endpoints  []Endpoint `json:"endpoints"`
 }
 
@@ -53,6 +57,11 @@ type MockHandler struct {
 }
 
 func (s MockHandler) ValidateConfig() error {
+	if s.Config.ProxyPass != "" {
+		if _, err := url.Parse(s.Config.ProxyPass); err != nil {
+			return err
+		}
+	}
 	for _, endpoint := range s.Config.Endpoints {
 		if endpoint.Uri == "" {
 			return errors.New("endpoint must include uri, e.g. /example")
@@ -154,6 +163,11 @@ func (s MockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	endpoint, err := s.MatchEndpoint(r)
 	if err != nil {
 		if errors.Is(err, ErrEndpointNotFound) {
+			if s.Config.ProxyPass != "" {
+				proxyHandler(s.Config.ProxyPass, w, r)
+				return
+			}
+
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte("Not found\n"))
 			return
@@ -190,6 +204,39 @@ func (s MockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(resp))
 }
 
+func proxyHandler(proxyURL string, w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	pu, _ := url.Parse(proxyURL)
+	u := r.URL
+	u.Host = pu.Host
+	u.Scheme = pu.Scheme
+	req, err := http.NewRequestWithContext(ctx, r.Method, u.String(), r.Body)
+	if err != nil {
+		errorHandler(w, r, "Unknown error has occurred", err)
+		return
+	}
+	req.Header = r.Header.Clone()
+	client := &http.Client{Timeout: time.Second * 30}
+	log.Printf("proxying request to %s", u.String())
+	resp, err := client.Do(req)
+	if err != nil {
+		errorHandler(w, r, "Unknown error has occurred", err)
+		return
+	}
+	defer resp.Body.Close()
+	for k, values := range resp.Header {
+		for _, v := range values {
+			w.Header().Set(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	if _, err = io.Copy(w, resp.Body); err != nil {
+		errorHandler(w, r, "Unknown error has occurred", err)
+		return
+	}
+}
+
 func OpenConfigFile(path string) (Config, error) {
 	configFile, err := os.ReadFile(path)
 	if err != nil {
@@ -207,4 +254,10 @@ func OpenConfigFile(path string) (Config, error) {
 func IsJSON(str string) bool {
 	var js json.RawMessage
 	return json.Unmarshal([]byte(str), &js) == nil
+}
+
+func errorHandler(w http.ResponseWriter, r *http.Request, msg string, err error) {
+	log.Print(err)
+	w.WriteHeader(http.StatusInternalServerError)
+	fmt.Fprintf(w, "%s, %v", msg, err)
 }
