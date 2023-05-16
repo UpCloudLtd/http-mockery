@@ -11,5 +11,5 @@ RUN chmod +x /app/http-mockery
 FROM alpine:latest
 
 COPY --from=builder /app/http-mockery /go/bin/http-mockery
-RUN apk update && apk add --no-cache ca-certificate
+RUN apk update && apk add --no-cache ca-certificates
 ENTRYPOINT ["/go/bin/http-mockery"]
