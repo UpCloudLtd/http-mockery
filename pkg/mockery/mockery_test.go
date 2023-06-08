@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ajmyyra/http-mockery/pkg/mockery"
+	"github.com/UpCloudLtd/http-mockery/pkg/mockery"
 	"github.com/stretchr/testify/assert"
 )
 

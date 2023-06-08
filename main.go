@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/ajmyyra/http-mockery/pkg/mockery"
+	"github.com/UpCloudLtd/http-mockery/pkg/mockery"
 )
 
 const (
