@@ -1,9 +1,9 @@
-module github.com/ajmyyra/http-mockery
+module github.com/UpCloudLtd/http-mockery
 
 go 1.19
 
 require (
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	github.com/valyala/fasttemplate v1.2.2
 )
 
