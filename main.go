@@ -45,6 +45,7 @@ func main() {
 
 	h := mockery.MockHandler{
 		Config: config,
+		Log:    log.Default(),
 	}
 
 	if err = h.ValidateConfig(); err != nil {

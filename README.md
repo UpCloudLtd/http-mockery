@@ -10,8 +10,8 @@ Endpoint config needs to have atleast `uri`, `method` and `response_code` to ope
 
 Endpoint `type` is defaulted to `normal` but can also be set as `regexp`. It allows for standard regular expressions in the `uri` to match more specific use cases. Endpoints are checked in a given order and first matching endpoint (with correct `uri` and `response_code`) will be used.
 
+Request and response bodies from requests can be logged with their relevant config options under `logging`, example [here](examples/config-example.json). Endpoint-specific secrets are censored from logs.
+
+It's also possible to proxy all requests that don't match any endpoint towards a configured destination with [proxy-pass configuration](examples/config-example-proxy-pass.json).
+
 All templates must be valid JSON after variable replacement. No other formats are supported at this time (PRs are welcome!)
-
-## Example usage with Kubernetes
-
-TODO
