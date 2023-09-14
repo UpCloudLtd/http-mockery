@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	configEnvName     = "HTTP_MOCKERY_CONFIG"
-	defaultConfigFile = "config.json"
+	EnvVarConfigFile          = "HTTP_MOCKERY_CONFIG"
+	EnvVarLogRequestContents  = "HTTP_MOCKERY_REQUEST_CONTENTS"
+	EnvVarLogResponseContents = "HTTP_MOCKERY_RESPONSE_CONTENTS"
+	defaultConfigFile         = "config.json"
 )
 
 func main() {
@@ -20,7 +22,7 @@ func main() {
 	if len(os.Args) >= 2 {
 		configFile = os.Args[1]
 	}
-	if envConfig, found := os.LookupEnv(configEnvName); found {
+	if envConfig, found := os.LookupEnv(EnvVarConfigFile); found {
 		configFile = envConfig
 	}
 
@@ -34,6 +36,13 @@ func main() {
 	}
 	if config.ListenPort == 0 {
 		config.ListenPort = 8080
+	}
+
+	if _, found := os.LookupEnv(EnvVarLogRequestContents); found {
+		config.Logging.RequestContents = true
+	}
+	if _, found := os.LookupEnv(EnvVarLogResponseContents); found {
+		config.Logging.ResponseContents = true
 	}
 
 	listenAddr := fmt.Sprintf("%s:%d", config.ListenIP, config.ListenPort)
@@ -52,6 +61,6 @@ func main() {
 		log.Fatal("Config validation failed: ", err.Error())
 	}
 
-	log.Printf("start listening %s", listenAddr)
-	log.Fatal(http.Serve(l, h))
+	h.Log.Printf("start listening %s", listenAddr)
+	h.Log.Fatal(http.Serve(l, h))
 }
