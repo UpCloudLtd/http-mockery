@@ -1,6 +1,7 @@
 package mockery
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,9 @@ var validHTTPMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut,
 const (
 	EndpointTypeNormal = "normal"
 	EndpointTypeRegex  = "regex"
+
+	ContextKeyReqBody = "requestBody"
+	ContextKeyResBody = "responseBody"
 )
 
 var validEndpointTypes = []string{EndpointTypeNormal, EndpointTypeRegex}
@@ -35,6 +39,7 @@ type Config struct {
 	ListenPort int        `json:"listen_port"`
 	ProxyPass  string     `json:"proxy_pass"`
 	Endpoints  []Endpoint `json:"endpoints"`
+	Logging    Logging    `json:"logging"`
 }
 
 type Endpoint struct {
@@ -52,8 +57,14 @@ type Variable struct {
 	Value  string `json:"value"`
 }
 
+type Logging struct {
+	RequestContents  bool `json:"request_contents"`
+	ResponseContents bool `json:"response_contents"`
+}
+
 type MockHandler struct {
 	Config Config
+	Log    *log.Logger
 }
 
 func (s MockHandler) ValidateConfig() error {
@@ -159,52 +170,56 @@ func (s MockHandler) MatchEndpoint(r *http.Request) (Endpoint, error) {
 }
 
 func (s MockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// TODO add request logging
+	if s.Config.Logging.RequestContents && r.ContentLength > 0 && r.Header.Get("Content-Type") == "application/json" {
+		var rawBody bytes.Buffer
+		if _, err := rawBody.ReadFrom(r.Body); err != nil {
+			s.Log.Printf("Error reading request body: %s\n", err.Error())
+		}
+		r.Body = io.NopCloser(&rawBody) // so we can proxy it forward
+
+		body, err := prettifyJSONBody(rawBody.Bytes())
+		if err != nil {
+			s.Log.Printf("Error fetching request body: %s\n", err.Error())
+		} else {
+			r = addToRequestContext(r, ContextKeyReqBody, body)
+		}
+	}
+
 	endpoint, err := s.MatchEndpoint(r)
 	if err != nil {
 		if errors.Is(err, ErrEndpointNotFound) {
 			if s.Config.ProxyPass != "" {
-				proxyHandler(s.Config.ProxyPass, w, r)
+				proxyHandler(s.Config.ProxyPass, w, r, s.Log, s.Config.Logging.ResponseContents)
 				return
 			}
 
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("Not found\n"))
+			logRequestAndRespond(s.Log, r, w, http.StatusNotFound, "Not found\n", false, false)
 			return
 		}
 
-		log.Printf("Unknown error in endpoint matching for %s (%s): %+v\n", endpoint.Uri, endpoint.Method, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("Unknown error has occurred, see logs\n"))
+		errorHandler(w, r, s.Log, fmt.Sprintf("Unknown error in endpoint matching for %s (%s)", endpoint.Uri, endpoint.Method), err, false)
 		return
 	}
 
 	if endpoint.Template == "" {
-		w.WriteHeader(endpoint.ResponseCode)
+		logRequestAndRespond(s.Log, r, w, endpoint.ResponseCode, "", false, false)
 		return
 	}
 
 	resp, err := s.RenderTemplateResponse(endpoint)
 	if err != nil {
-		log.Printf("Unknown error in parsing response for %s (%s): %+v\n", endpoint.Uri, endpoint.Method, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("Unknown error has occurred, see logs\n"))
+		errorHandler(w, r, s.Log, fmt.Sprintf("Unknown error in parsing response for %s (%s)", endpoint.Uri, endpoint.Method), err, false)
 		return
 	}
 
-	if !IsJSON(resp) {
-		log.Printf("Response for %s (%s) is not valid JSON: %s\n", endpoint.Uri, endpoint.Method, resp)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("Unknown error has occurred, see logs\n"))
-		return
+	if s.Config.Logging.ResponseContents {
+		r = addToRequestContext(r, ContextKeyResBody, censorVariables(resp, endpoint.Variables))
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(endpoint.ResponseCode)
-	_, _ = w.Write([]byte(resp))
+	logRequestAndRespond(s.Log, r, w, endpoint.ResponseCode, resp, true, false)
 }
 
-func proxyHandler(proxyURL string, w http.ResponseWriter, r *http.Request) {
+func proxyHandler(proxyURL string, w http.ResponseWriter, r *http.Request, l *log.Logger, logResponse bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	pu, _ := url.Parse(proxyURL)
@@ -213,15 +228,14 @@ func proxyHandler(proxyURL string, w http.ResponseWriter, r *http.Request) {
 	u.Scheme = pu.Scheme
 	req, err := http.NewRequestWithContext(ctx, r.Method, u.String(), r.Body)
 	if err != nil {
-		errorHandler(w, r, "Unknown error has occurred", err)
+		errorHandler(w, r, l, "Error creating a proxyable request", err, true)
 		return
 	}
 	req.Header = r.Header.Clone()
 	client := &http.Client{Timeout: time.Second * 30}
-	log.Printf("proxying request to %s", u.String())
 	resp, err := client.Do(req)
 	if err != nil {
-		errorHandler(w, r, "Unknown error has occurred", err)
+		errorHandler(w, r, l, "Error connecting to proxied destination", err, true)
 		return
 	}
 	defer resp.Body.Close()
@@ -230,11 +244,19 @@ func proxyHandler(proxyURL string, w http.ResponseWriter, r *http.Request) {
 			w.Header().Set(k, v)
 		}
 	}
-	w.WriteHeader(resp.StatusCode)
-	if _, err = io.Copy(w, resp.Body); err != nil {
-		errorHandler(w, r, "Unknown error has occurred", err)
+
+	rawResBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		errorHandler(w, r, l, "Error reading proxied response body", err, true)
 		return
 	}
+	resBody := string(rawResBody)
+
+	if logResponse {
+		r = addToRequestContext(r, ContextKeyResBody, resBody)
+	}
+
+	logRequestAndRespond(l, r, w, resp.StatusCode, resBody, IsJSON(resBody), true)
 }
 
 func OpenConfigFile(path string) (Config, error) {
@@ -251,13 +273,7 @@ func OpenConfigFile(path string) (Config, error) {
 	return c, nil
 }
 
-func IsJSON(str string) bool {
-	var js json.RawMessage
-	return json.Unmarshal([]byte(str), &js) == nil
-}
-
-func errorHandler(w http.ResponseWriter, r *http.Request, msg string, err error) {
-	log.Print(err)
-	w.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintf(w, "%s, %v", msg, err)
+func errorHandler(w http.ResponseWriter, r *http.Request, l *log.Logger, msg string, err error, proxied bool) {
+	l.Printf("%s: %v\n", msg, err)
+	logRequestAndRespond(l, r, w, http.StatusInternalServerError, "Unknown error has occurred, see logs\n", false, proxied)
 }
