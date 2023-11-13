@@ -14,6 +14,10 @@
         {
           "name": "item2",
           "env_var": "TEMPLATE_VALUE2"
+        },
+        {
+          "name": "item3",
+          "header": "X-Real-IP"
         }
       ]
     },

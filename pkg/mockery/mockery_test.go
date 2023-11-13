@@ -1,6 +1,7 @@
 package mockery_test
 
 import (
+	"log"
 	"net/http"
 	"testing"
 
@@ -21,6 +22,10 @@ func testingConfig() mockery.Config {
 					{
 						Name:  "item1",
 						Value: "test123",
+					},
+					{
+						Name:   "auth_username",
+						Header: "authorization_username",
 					},
 				},
 			},
@@ -62,6 +67,7 @@ func TestConfigLoading(t *testing.T) {
 func TestConfigValidation(t *testing.T) {
 	testMocker := mockery.MockHandler{
 		Config: testingConfig(),
+		Log:    log.Default(),
 	}
 
 	err := testMocker.ValidateConfig()
@@ -78,19 +84,23 @@ func TestConfigValidation(t *testing.T) {
 }
 
 func TestTemplateRendering(t *testing.T) {
+	const username = "user12345"
 	testMocker := mockery.MockHandler{
 		Config: testingConfig(),
+		Log:    log.Default(),
 	}
 
-	rendered, err := testMocker.RenderTemplateResponse(testMocker.Config.Endpoints[0])
+	rendered, err := testMocker.RenderTemplateResponse(testMocker.Config.Endpoints[0], basicAuthRequest(username, "bar"))
 	assert.Equal(t, nil, err, "Template should be rendered correctly")
 	assert.Contains(t, rendered, testMocker.Config.Endpoints[0].Variables[0].Value, "Template should contain rendered value from config")
+	assert.Contains(t, rendered, username, "Template should contain rendered value from config")
 	assert.True(t, mockery.IsJSON(rendered), "Rendered template should be valid JSON")
 }
 
 func TestEndpointMatching(t *testing.T) {
 	testMocker := mockery.MockHandler{
 		Config: testingConfig(),
+		Log:    log.Default(),
 	}
 
 	_, err := testMocker.MatchEndpoint(&http.Request{Method: http.MethodGet, RequestURI: "/example2"})
@@ -106,4 +116,10 @@ func TestEndpointMatching(t *testing.T) {
 	endpoint, err = testMocker.MatchEndpoint(&http.Request{Method: http.MethodDelete, RequestURI: "/resource/14354"})
 	assert.Equal(t, nil, err, "Endpoint should match")
 	assert.Equal(t, testMocker.Config.Endpoints[2], endpoint, "Should be correctly matched endpoint")
+}
+
+func basicAuthRequest(username, password string) *http.Request {
+	r := http.Request{Header: http.Header{}}
+	r.SetBasicAuth(username, password)
+	return &r
 }
