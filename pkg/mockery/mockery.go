@@ -142,6 +142,9 @@ func (s MockHandler) RenderTemplateResponse(e Endpoint, r *http.Request) (string
 					}
 					return w.Write([]byte(envVar))
 				}
+				if variable.Value != "" {
+					return w.Write([]byte(variable.Value))
+				}
 				if variable.Header != "" {
 					if h := header.Get(variable.Header); h != "" {
 						return w.Write([]byte(h))
@@ -149,9 +152,6 @@ func (s MockHandler) RenderTemplateResponse(e Endpoint, r *http.Request) (string
 					// Headers are dynamic and only available in runtime, so fail silently if header is not set.
 					s.Log.Printf("HTTP header %s not found for template %s of endpoint %s", variable.Header, e.Template, e.Uri)
 					return 0, nil
-				}
-				if variable.Value != "" {
-					return w.Write([]byte(variable.Value))
 				}
 			}
 		}
