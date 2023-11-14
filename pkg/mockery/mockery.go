@@ -54,6 +54,7 @@ type Endpoint struct {
 type Variable struct {
 	Name   string `json:"name"`
 	EnvVar string `json:"env_var"`
+	Header string `json:"header"`
 	Value  string `json:"value"`
 }
 
@@ -105,7 +106,7 @@ func (s MockHandler) ValidateConfig() error {
 		}
 
 		if endpoint.Template != "" {
-			rendered, err := s.RenderTemplateResponse(endpoint)
+			rendered, err := s.RenderTemplateResponse(endpoint, &http.Request{})
 			if err != nil {
 				return fmt.Errorf("unable to render template %s: %+v", endpoint.Template, err)
 			}
@@ -119,7 +120,7 @@ func (s MockHandler) ValidateConfig() error {
 	return nil
 }
 
-func (s MockHandler) RenderTemplateResponse(e Endpoint) (string, error) {
+func (s MockHandler) RenderTemplateResponse(e Endpoint, r *http.Request) (string, error) {
 	template, err := os.ReadFile(e.Template)
 	if err != nil {
 		return "", err
@@ -130,6 +131,7 @@ func (s MockHandler) RenderTemplateResponse(e Endpoint) (string, error) {
 		return "", fmt.Errorf("unable to parse template %s: %+v", e.Template, err)
 	}
 
+	header := buildHeaderVars(r)
 	return t.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
 		for _, variable := range e.Variables {
 			if tag == variable.Name {
@@ -140,9 +142,16 @@ func (s MockHandler) RenderTemplateResponse(e Endpoint) (string, error) {
 					}
 					return w.Write([]byte(envVar))
 				}
-
 				if variable.Value != "" {
 					return w.Write([]byte(variable.Value))
+				}
+				if variable.Header != "" {
+					if h := header.Get(variable.Header); h != "" {
+						return w.Write([]byte(h))
+					}
+					// Headers are dynamic and only available in runtime, so fail silently if header is not set.
+					s.Log.Printf("HTTP header %s not found for template %s of endpoint %s", variable.Header, e.Template, e.Uri)
+					return 0, nil
 				}
 			}
 		}
@@ -206,7 +215,7 @@ func (s MockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := s.RenderTemplateResponse(endpoint)
+	resp, err := s.RenderTemplateResponse(endpoint, r)
 	if err != nil {
 		errorHandler(w, r, s.Log, fmt.Sprintf("Unknown error in parsing response for %s (%s)", endpoint.Uri, endpoint.Method), err, false)
 		return
@@ -276,4 +285,16 @@ func OpenConfigFile(path string) (Config, error) {
 func errorHandler(w http.ResponseWriter, r *http.Request, l *log.Logger, msg string, err error, proxied bool) {
 	l.Printf("%s: %v\n", msg, err)
 	logRequestAndRespond(l, r, w, http.StatusInternalServerError, "Unknown error has occurred, see logs\n", false, proxied)
+}
+
+func buildHeaderVars(r *http.Request) http.Header {
+	if r == nil {
+		return http.Header{}
+	}
+	h := r.Header.Clone()
+	if username, password, ok := r.BasicAuth(); ok {
+		h.Set("authorization_username", username)
+		h.Set("authorization_password", password)
+	}
+	return h
 }

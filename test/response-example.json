@@ -1,5 +1,5 @@
 {
     "status": "success",
-    "configured_var": "<item1>"
+    "configured_var": "<item1>",
+    "username": "<auth_username>"
 }
-  
