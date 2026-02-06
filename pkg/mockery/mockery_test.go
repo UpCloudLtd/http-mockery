@@ -75,7 +75,7 @@ func TestConfigValidation(t *testing.T) {
 
 	testMocker.Config.Endpoints[0].Method = "TRACE"
 	err = testMocker.ValidateConfig()
-	assert.ErrorContains(t, err, "Invalid HTTP method", "Config validation should fail on unsupported HTTP method")
+	assert.ErrorContains(t, err, "invalid HTTP method", "Config validation should fail on unsupported HTTP method")
 	testMocker.Config = testingConfig()
 
 	testMocker.Config.Endpoints[0].ResponseCode = 0

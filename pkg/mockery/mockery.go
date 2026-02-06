@@ -18,11 +18,9 @@ import (
 	"github.com/valyala/fasttemplate"
 )
 
-var (
-	ErrEndpointNotFound = fmt.Errorf("no matching endpoint found")
-)
+var ErrEndpointNotFound = fmt.Errorf("no matching endpoint found")
 
-var validHTTPMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPost, http.MethodDelete}
+var validHTTPMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
 
 const (
 	EndpointTypeNormal = "normal"
@@ -91,7 +89,7 @@ func (s MockHandler) ValidateConfig() error {
 			}
 		}
 		if !validMethod {
-			return fmt.Errorf(fmt.Sprintf("Invalid HTTP method (%s) for endpoint %s. Allowed: %+v", endpoint.Method, endpoint.Uri, validHTTPMethods))
+			return fmt.Errorf("invalid HTTP method (%s) for endpoint %s. Allowed: %+v", endpoint.Method, endpoint.Uri, validHTTPMethods)
 		}
 
 		validType := false
@@ -102,7 +100,7 @@ func (s MockHandler) ValidateConfig() error {
 			}
 		}
 		if !validType {
-			return fmt.Errorf(fmt.Sprintf("Invalid endpoint type (%s) for endpoint %s. Allowed: %+v", endpoint.Type, endpoint.Uri, validEndpointTypes))
+			return fmt.Errorf("invalid endpoint type (%s) for endpoint %s. Allowed: %+v", endpoint.Type, endpoint.Uri, validEndpointTypes)
 		}
 
 		if endpoint.Template != "" {
