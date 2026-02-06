@@ -18,11 +18,9 @@ import (
 	"github.com/valyala/fasttemplate"
 )
 
-var (
-	ErrEndpointNotFound = fmt.Errorf("no matching endpoint found")
-)
+var ErrEndpointNotFound = fmt.Errorf("no matching endpoint found")
 
-var validHTTPMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPost, http.MethodDelete}
+var validHTTPMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
 
 const (
 	EndpointTypeNormal = "normal"
